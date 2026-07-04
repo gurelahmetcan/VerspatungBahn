@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DB Roulette</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:ital,wght@1,700;1,800;1,900&display=swap');
 
   :root{
     --db-red:#EC0016;
@@ -186,9 +186,83 @@
   .card .meta b{color:var(--amber);font-weight:700;}
 
   .foot{font-family:var(--mono);font-size:10px;color:#5b626b;text-align:center;margin-top:16px;letter-spacing:.05em;}
+
+  /* ===== Scene 01 — Welcome ===== */
+  /* Scene overlays sit on top of the game; dismissing one reveals what's beneath.
+     Future scenes (e.g. the 02 "evil eye" intro) can be added the same way. */
+  .scene{position:fixed;inset:0;z-index:100;display:flex;justify-content:center;}
+  .scene[hidden]{display:none;}
+
+  /* Welcome panel matches the game frame width (540px), centered.
+     container-type lets children size in cqw (% of panel width), so the whole
+     layout keeps the exact proportions of the 1215x1710 reference at any width. */
+  .wm-panel{position:relative;width:100%;max-width:540px;height:100%;background:#000;overflow:hidden;container-type:inline-size;}
+
+  .wm-sprites{position:absolute;inset:0;z-index:1;pointer-events:none;}
+  .wm-sprite{
+    position:absolute;top:-340px;left:0;
+    transform:translateY(0) rotate(var(--rot,0deg));
+    animation:wm-fall linear forwards;
+    will-change:transform;
+    user-select:none;-webkit-user-drag:none;
+  }
+  @keyframes wm-fall{
+    to{transform:translateY(calc(100vh + 400px)) rotate(var(--rot,0deg));}
+  }
+
+  /* Real gradient asset used as a multiply mask: white->transparent, black->solid,
+     so sprites dissolve into black at the bottom. */
+  .wm-gradient{
+    position:absolute;left:0;right:0;bottom:0;height:58%;
+    background:url('assets/01_screen/01_gradient.png') no-repeat center bottom;
+    background-size:100% 100%;
+    mix-blend-mode:multiply;z-index:2;pointer-events:none;
+  }
+
+  .wm-content{
+    position:absolute;left:0;right:0;bottom:0;z-index:3;
+    display:flex;flex-direction:column;align-items:center;
+    padding:0 4cqw 10.5vh;text-align:center;
+  }
+  /* Reference (1215px canvas): "welcome to" ~40px, title cap 77px (~106px font),
+     button 305x130 with ~98px text. Expressed as % of panel width via cqw. */
+  .wm-welcome{
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:3.4cqw;color:#fff;letter-spacing:-0.05em;line-height:1;margin-bottom:0.6cqw;
+  }
+  .wm-title{
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:800;
+    font-size:8.8cqw;color:#fff;letter-spacing:-0.05em;line-height:.9;
+    white-space:nowrap;margin-bottom:6.5cqw;
+  }
+  .wm-play{
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:7.8cqw;color:#111;background:#d9d9d9;
+    border:none;cursor:pointer;padding:0;
+    width:25.1cqw;height:10.7cqw;
+    display:flex;align-items:center;justify-content:center;
+    letter-spacing:-0.04em;line-height:1;
+    transition:background .15s, transform .08s;
+  }
+  .wm-play:hover{background:#fff;}
+  .wm-play:active{transform:translateY(2px);}
 </style>
 </head>
 <body>
+
+<!-- ===== Scene 01 — Welcome ===== -->
+<div class="scene" id="sceneWelcome">
+  <div class="wm-panel">
+    <div class="wm-sprites" id="wmSprites"></div>
+    <div class="wm-gradient"></div>
+    <div class="wm-content">
+      <div class="wm-welcome">welcome to</div>
+      <div class="wm-title">Verspätung Bahn</div>
+      <button class="wm-play" id="wmPlay">play</button>
+    </div>
+  </div>
+</div>
+
 <div class="frame">
 
   <div class="board">
@@ -439,6 +513,79 @@ spinBtn.addEventListener('click',spin);
 document.getElementById('restartBtn').addEventListener('click',restart);
 tickClock();setInterval(tickClock,1000*15);
 startLeg();
+
+/* ===== Scene 01 — Welcome ===== */
+// Each sprite type has a FIXED size and rotation; only the horizontal
+// spawn position is random. They fall continuously in a loop.
+// Sizes are fractions of the panel width (wf), matching the reference scale.
+// Each type has a FIXED size and rotation; only the horizontal spawn is random.
+const WM_SPRITES = [
+  {src:'assets/01_screen/01_clock.png',   wf:0.33, rot:-6, dur:6},
+  {src:'assets/01_screen/01_smile.png',   wf:0.33, rot:0,  dur:7.5},
+  {src:'assets/01_screen/01_sad.png',     wf:0.29, rot:-9, dur:6.5},
+  {src:'assets/01_screen/01_bandito.png', wf:0.31, rot:5,  dur:8.5},
+  {src:'assets/01_screen/01_train.png',   wf:0.30, rot:0,  dur:7},
+  {src:'assets/01_screen/01_flame.png',   wf:0.20, rot:9,  dur:5},
+  {src:'assets/01_screen/01_eye.png',     wf:0.28, rot:0,  dur:5.5},
+  {src:'assets/01_screen/01_wheel.png',     wf:0.36, rot:5,  dur:4.5},
+];
+
+const wmLayer = document.getElementById('wmSprites');
+let wmTimer = null;
+let wmLastType = -1;   // avoid repeating the same sprite back-to-back
+let wmLastFrac = -1;   // avoid spawning in the same horizontal zone twice in a row
+
+function wmSpawn(delay){
+  const cw = wmLayer.clientWidth || 540;
+  // pick a different type than last time
+  let i;
+  do { i = Math.floor(Math.random()*WM_SPRITES.length); }
+  while(WM_SPRITES.length>1 && i===wmLastType);
+  wmLastType = i;
+  const t = WM_SPRITES[i];
+
+  const w = Math.round(t.wf * cw);
+  // pick a horizontal fraction spread apart from the previous one
+  let frac;
+  do { frac = Math.random(); }
+  while(wmLastFrac>=0 && Math.abs(frac - wmLastFrac) < 0.28);
+  wmLastFrac = frac;
+
+  const img = document.createElement('img');
+  img.className = 'wm-sprite';
+  img.src = t.src;
+  img.width = w;
+  // random tilt between -5 and 5 degrees
+  const rot = (Math.random() * 10 - 5).toFixed(2);
+  img.style.setProperty('--rot', rot + 'deg');
+  img.style.left = Math.round(frac * Math.max(0, cw - w)) + 'px';
+  img.style.animationDuration = t.dur + 's';
+  if(delay) img.style.animationDelay = delay + 's';
+  img.addEventListener('animationend', () => img.remove(), {once:true});
+  wmLayer.appendChild(img);
+}
+
+function wmStart(){
+  if(wmTimer) return;
+  // pre-fill a few, staggered up the screen so it doesn't start empty
+  for(let i=0;i<3;i++) wmSpawn(-4 - i*3);
+  wmTimer = setInterval(wmSpawn, 500);
+}
+
+function wmStop(){
+  clearInterval(wmTimer);
+  wmTimer = null;
+}
+
+document.getElementById('wmPlay').addEventListener('click', () => {
+  wmStop();
+  const scene = document.getElementById('sceneWelcome');
+  scene.style.transition = 'opacity .4s ease';
+  scene.style.opacity = '0';
+  setTimeout(() => { scene.hidden = true; wmLayer.innerHTML = ''; }, 400);
+});
+
+wmStart();
 </script>
 </body>
 </html>
