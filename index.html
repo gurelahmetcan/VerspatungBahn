@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DB Roulette</title>
+<title>VB Roulette</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:ital,wght@1,700;1,800;1,900&display=swap');
 
@@ -481,7 +481,7 @@
       <img src="assets/03_screen/03_roulette_back.png" alt="">
       <img src="assets/05_sucess/05_sucess.png" alt="">
     </div>
-    <p class="end-text">Congrats, you survived!<br>although we didn’t want you to.<br>tschüs, till next time.</p>
+    <p class="end-text">Congrats, you survived!<br>although we didn’t want you to.<br>cheerio, till next time.</p>
     <button class="end-btn end-play" id="successPlay">play again</button>
     <button class="end-btn end-share" id="successShare">share</button>
   </div>
@@ -495,29 +495,29 @@ const LEGS = STATIONS.length - 1; // 5 spins to win
 // GOOD (red wedges) — only these advance you.
 const RED_GOOD = [
   {label:"free seat", text:"A seat. An actual free seat. A small miracle. You roll on."},
-  {label:"koffee",    text:"The Bordbistro works and the coffee is hot. Onward."},
-  {label:"wlan!",     text:"The WiFi connects first try. Nobody will believe you. You continue."},
+  {label:"coffee",    text:"The café car works and the coffee is hot. Onward."},
+  {label:"wifi!",     text:"The WiFi connects first try. Nobody will believe you. You continue."},
   {label:"on time",   text:"Exactly on time. Suspicious — but you take the win."},
-  {label:"quiet",     text:"Ruhezone, and it is somehow actually quiet. You advance."},
+  {label:"quiet",     text:"The quiet coach actually stays quiet. Remarkable. You advance."},
   {label:"warm",      text:"The heating works, in the right season. Remarkable. You move on."},
   {label:"space",     text:"Legroom. Nobody reclined into your knees. You press on."},
-  {label:"anschluss", text:"You catch the connection with two whole minutes to spare."},
+  {label:"transfer",  text:"You catch the connection with two whole minutes to spare."},
 ];
 // BAD — black labelled wedges. These eliminate you.
 const BAD_BLACK = [
   {label:"no AC",     text:"The air conditioning dies. 34°C and climbing. You do not survive coach 7."},
-  {label:"WC kaputt", text:"Every toilet in the Zug is „defekt\". This is where the journey ends."},
+  {label:"WC broken", text:"Every toilet on the train is out of order. This is where the journey ends."},
   {label:"+60",       text:"Sixty minute delay. Connection missed, replacement bus missed too."},
-  {label:"ausfall",   text:"„Zug fällt aus.\" Cancelled. The whole platform exhales at once."},
-  {label:"streik",    text:"GDL strike, announced mid-journey. No trains today. Or tomorrow."},
-  {label:"ticket",    text:"Fahrkartenkontrolle. Your ticket would not load. Off you go."},
+  {label:"cancelled", text:"\"Cancelled.\" The whole platform exhales at once."},
+  {label:"strike",    text:"A nationwide strike is announced mid-journey. No trains today. Or tomorrow."},
+  {label:"ticket",    text:"Ticket inspection. Your ticket would not load. Off you go."},
 ];
 // BAD — halftone icon wedges (no label). These eliminate you.
 const BAD_ICON = [
-  {icon:"clock",   text:"Signalstörung. You stop between two fields for an hour. No reason given."},
-  {icon:"fire",    text:"Something smoulders in the Oberleitung. Everyone off. The journey is over."},
+  {icon:"clock",   text:"Signal failure. You stop between two fields for an hour. No reason given."},
+  {icon:"fire",    text:"Something smoulders in the overhead wires. Everyone off. The journey is over."},
   {icon:"bandit",  text:"The evil eye of Verspätung finds you. Your stop is skipped. You live elsewhere now."},
-  {icon:"smileys", text:"Schienenersatzverkehr. A sad replacement bus is promised. It never comes."},
+  {icon:"smileys", text:"A replacement bus service is promised. It never comes."},
 ];
 
 const ICON_SRC = {
@@ -717,7 +717,7 @@ function spin(){
   busy=true;
   spinBtn.disabled=true;
   resultEl.className='vb-result';
-  resultEl.textContent='die Bahn entscheidet…';
+  resultEl.textContent='the wheel decides…';
 
   const idx=Math.floor(Math.random()*SEG);
   const step=360/SEG;
