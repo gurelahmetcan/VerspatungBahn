@@ -604,6 +604,114 @@ function startLeg(){
   renderLeg();
 }
 
+// Synthesized ratchet-click spin sound (no audio file needed). A click plays every
+// time a wedge boundary passes the pointer, spaced out over time to match the
+// wheel's own deceleration curve — must stay in sync with .vb-wheel's transition
+// (5.4s, cubic-bezier(.16,.84,.28,1)) and SEG (wedges per wheel).
+const SPIN_DURATION = 5.4;
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playClick(ctx, when, volume){
+  const dur = 0.02;
+  const buf = ctx.createBuffer(1, ctx.sampleRate*dur, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1) * (1 - i/data.length);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1800 + Math.random()*900;
+  bp.Q.value = 1.1;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(volume, when);
+  gain.gain.exponentialRampToValueAtTime(0.001, when+dur);
+  noise.connect(bp).connect(gain).connect(ctx.destination);
+  noise.start(when);
+  noise.stop(when+dur);
+}
+function playSpinSound(totalRotationDeg){
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
+  const wedgeStep = 360/SEG;
+  const clickCount = Math.max(8, Math.round(totalRotationDeg/wedgeStep));
+  const easePow = 3.2; // approximates the wheel's ease-out: ticks bunch up early, spread out late
+  for(let i=1;i<=clickCount;i++){
+    const frac = i/clickCount;                     // evenly spaced across wedge crossings
+    const t = 1 - Math.pow(1-frac, 1/easePow);      // inverse ease-out → real time position
+    playClick(ctx, now + t*SPIN_DURATION, 0.32 + Math.random()*0.1);
+  }
+}
+
+// Fail stinger: a classic descending "sad trombone" womp — sawtooth notes through
+// a lowpass filter (brassy), each bending slightly down, last one held with vibrato.
+function playBrassNote(ctx, freq, start, dur, withVibrato){
+  const osc=ctx.createOscillator();
+  osc.type='sawtooth';
+  osc.frequency.setValueAtTime(freq, start);
+  osc.frequency.exponentialRampToValueAtTime(freq*0.94, start+dur);
+  const lp=ctx.createBiquadFilter();
+  lp.type='lowpass'; lp.frequency.value=900;
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(0.28, start+0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start+dur);
+  osc.connect(lp).connect(gain).connect(ctx.destination);
+  if(withVibrato){
+    const lfo=ctx.createOscillator(); lfo.frequency.value=5.5;
+    const lfoGain=ctx.createGain(); lfoGain.gain.value=6;
+    lfo.connect(lfoGain).connect(osc.frequency);
+    lfo.start(start); lfo.stop(start+dur);
+  }
+  osc.start(start);
+  osc.stop(start+dur+0.05);
+}
+function playFailSound(){
+  const ctx=getAudioCtx();
+  const now=ctx.currentTime;
+  const notes=[233.08,220,207.65,196];   // Bb3, A3, Ab3, G3 — descending "womp womp womp woooomp"
+  const step=0.26;
+  notes.forEach((freq,i)=>{
+    const isLast = i===notes.length-1;
+    playBrassNote(ctx, freq, now+i*step, isLast?0.62:0.28, isLast);
+  });
+}
+
+// Success stinger: an ascending bell chime (major arpeggio, sine + faint overtone).
+function playBell(ctx, freq, start, dur){
+  const osc=ctx.createOscillator();
+  osc.type='sine';
+  osc.frequency.setValueAtTime(freq,start);
+  const osc2=ctx.createOscillator();     // faint overtone for a bell-like shimmer
+  osc2.type='sine';
+  osc2.frequency.setValueAtTime(freq*2.01,start);
+  const gain=ctx.createGain();
+  gain.gain.setValueAtTime(0.0001,start);
+  gain.gain.exponentialRampToValueAtTime(0.35,start+0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001,start+dur);
+  const gain2=ctx.createGain();
+  gain2.gain.setValueAtTime(0.0001,start);
+  gain2.gain.exponentialRampToValueAtTime(0.09,start+0.01);
+  gain2.gain.exponentialRampToValueAtTime(0.0001,start+dur*0.6);
+  osc.connect(gain).connect(ctx.destination);
+  osc2.connect(gain2).connect(ctx.destination);
+  osc.start(start); osc.stop(start+dur+0.05);
+  osc2.start(start); osc2.stop(start+dur*0.6+0.05);
+}
+function playSuccessSound(){
+  const ctx=getAudioCtx();
+  const now=ctx.currentTime;
+  const notes=[523.25,659.25,783.99,1046.50]; // C5, E5, G5, C6 — bright ascending run
+  const step=0.12;
+  notes.forEach((freq,i)=>{
+    const isLast = i===notes.length-1;
+    playBell(ctx, freq, now+i*step, isLast?0.9:0.35);
+  });
+}
+
 function spin(){
   if(busy) return;
   busy=true;
@@ -616,8 +724,10 @@ function spin(){
   const center=idx*step;                  // wedge i is centered on the i*step ray (0=top, cw)
   const base=Math.ceil(rotation/360)*360; // continue forward
   const target=base + 360*5 + (360-center); // 5 full turns + align wedge center to top
+  const delta=target-rotation;            // degrees actually travelled this spin
   rotation=target;
   wheel.style.transform=`rotate(${rotation}deg)`;
+  playSpinSound(delta);
 
   wheel.addEventListener('transitionend',()=>resolve(idx),{once:true});
 }
@@ -661,12 +771,14 @@ function stopAmbient(){ vbAmbient.pause(); }
 
 function gameOver(slot){
   stopAmbient();
+  playFailSound();
   showEnd('sceneFail');
 }
 
 function victory(){
   document.querySelectorAll('.vb-stop').forEach(s=>s.classList.add('done'));
   stopAmbient();
+  playSuccessSound();
   showEnd('sceneSuccess');
 }
 function restart(){
