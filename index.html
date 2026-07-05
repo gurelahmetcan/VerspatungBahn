@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DB Roulette</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:ital,wght@1,700;1,800;1,900&display=swap');
+
+  :root{
+    --db-red:#EC0016;
+    --db-red-dark:#b8000f;
+    --amber:#FFB81C;
+    --bg:#0d0f12;
+    --panel:#15181d;
+    --panel-2:#1c2026;
+    --steel-a:#2b3037;
+    --steel-b:#353c45;
+    --line:#2a2f37;
+    --ink:#f2f3f5;
+    --ink-dim:#9aa3ad;
+    --led:#FFB81C;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+    --disp:'Oswald','Arial Narrow',sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #1a1f27 0%, transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--disp);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:0;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .frame{width:100%;max-width:540px;}
+
+  /* Departure board header */
+  .board{
+    background:#000;
+    border:1px solid var(--line);
+    border-radius:10px 10px 0 0;
+    padding:14px 16px 12px;
+    box-shadow:inset 0 0 0 1px #0c0e11, 0 10px 30px rgba(0,0,0,.5);
+  }
+  .board-top{
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px dashed #333;padding-bottom:9px;margin-bottom:10px;
+  }
+  .logo{
+    display:flex;align-items:center;gap:9px;
+  }
+  .logo .mark{
+    background:var(--db-red);color:#fff;font-family:var(--disp);font-weight:700;
+    font-size:15px;letter-spacing:1px;padding:3px 7px;border-radius:3px;
+    transform:skewX(-6deg);
+  }
+  .logo .mark span{display:inline-block;transform:skewX(6deg);}
+  .logo .sub{font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);letter-spacing:.14em;text-transform:uppercase;}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--led);letter-spacing:.08em;}
+
+  .board-row{
+    display:grid;grid-template-columns:54px 1fr auto;gap:10px;align-items:baseline;
+    font-family:var(--mono);
+  }
+  .board-row .time{color:var(--led);font-size:15px;font-weight:700;letter-spacing:.04em;}
+  .board-row .dest{
+    color:var(--led);font-size:15px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .board-row .status{font-size:11px;letter-spacing:.1em;text-transform:uppercase;}
+  .status.ok{color:#46d17a;}
+  .status.warn{color:var(--db-red);animation:flick 1.1s steps(2) infinite;}
+  @keyframes flick{50%{opacity:.45;}}
+
+  /* Route strip */
+  .route{
+    background:var(--panel);
+    border:1px solid var(--line);border-top:none;
+    padding:11px 14px;
+    display:flex;align-items:center;gap:0;overflow-x:auto;
+  }
+  .stop{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto;min-width:58px;}
+  .stop .dot{
+    width:13px;height:13px;border-radius:50%;background:#3a4049;border:2px solid #4a525d;
+    transition:.25s;
+  }
+  .stop .nm{font-family:var(--mono);font-size:9.5px;color:var(--ink-dim);letter-spacing:.04em;text-align:center;line-height:1.2;}
+  .stop.done .dot{background:#46d17a;border-color:#46d17a;}
+  .stop.done .nm{color:#cdd4dc;}
+  .stop.current .dot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 4px rgba(255,184,28,.18);}
+  .stop.current .nm{color:var(--amber);font-weight:700;}
+  .seg{flex:1 1 auto;height:2px;background:#2c323b;min-width:14px;margin-top:-19px;}
+  .seg.done{background:#46d17a;}
+
+  /* Stage */
+  .stage{
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;
+    padding:20px 16px 22px;text-align:center;
+    position:relative;overflow:hidden;
+  }
+  .leg-label{
+    font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--ink-dim);margin-bottom:2px;
+  }
+  .leg-route{
+    font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:.02em;margin-bottom:16px;
+  }
+  .leg-route b{color:var(--amber);font-weight:600;}
+
+  .wheel-wrap{position:relative;width:300px;height:300px;margin:0 auto;max-width:78vw;max-height:78vw;}
+  .pointer{
+    position:absolute;top:-4px;left:50%;transform:translateX(-50%);z-index:5;
+    width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;
+    border-top:22px solid var(--amber);
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));
+  }
+  .wheel{
+    width:100%;height:100%;border-radius:50%;
+    transition:transform 5.4s cubic-bezier(.16,.84,.28,1);
+    transform:rotate(0deg);
+    box-shadow:0 0 0 7px #0b0d10, 0 0 0 9px #30363f, 0 14px 34px rgba(0,0,0,.55);
+  }
+  .hub{
+    position:absolute;top:50%;left:50%;width:62px;height:62px;transform:translate(-50%,-50%);
+    background:radial-gradient(circle at 38% 34%, #2b3037, #14171b);
+    border-radius:50%;border:3px solid #41484f;z-index:4;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.6);
+  }
+  .hub .m{background:var(--db-red);color:#fff;font-family:var(--disp);font-weight:700;font-size:13px;
+    padding:2px 6px;border-radius:2px;transform:skewX(-6deg);letter-spacing:.5px;}
+  .hub .m span{display:inline-block;transform:skewX(6deg);}
+
+  .result{
+    min-height:62px;margin:16px 4px 4px;display:flex;align-items:center;justify-content:center;
+  }
+  .result p{
+    font-family:var(--mono);font-size:13.5px;line-height:1.5;color:var(--ink-dim);margin:0;
+    max-width:420px;
+  }
+  .result.good p{color:#bfe9cd;}
+  .result.bad p{color:#ffb3b8;}
+
+  .btn{
+    margin-top:8px;border:none;cursor:pointer;
+    font-family:var(--disp);font-weight:600;font-size:17px;letter-spacing:.16em;text-transform:uppercase;
+    color:#fff;background:var(--db-red);
+    padding:14px 30px;border-radius:7px;
+    box-shadow:0 5px 0 var(--db-red-dark), 0 8px 18px rgba(236,0,22,.28);
+    transition:transform .08s, box-shadow .08s, background .2s;
+  }
+  .btn:hover{background:#ff1322;}
+  .btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--db-red-dark);}
+  .btn:disabled{background:#3a3f47;color:#6b727b;box-shadow:0 5px 0 #23272d;cursor:not-allowed;}
+
+  /* ===== Scenes 04/05 — Fail / Success end screens =====
+     Ref (1215x1710): badge 324px (26.7cqw) at cy 27.7%; text at cy 47.5%;
+     play again 546x119 at cy 59.4%; share 412x120 at cy 69.8%. */
+  .end-panel{position:relative;width:100%;max-width:540px;height:100%;overflow:hidden;container-type:inline-size;}
+  #sceneFail .end-panel{background:#000;}
+  #sceneSuccess .end-panel{background:#e10a0a;}
+  .end-panel::after{content:'';position:absolute;inset:3.4vh 4.4cqw;
+    border:1px solid rgba(255,255,255,.55);pointer-events:none;}
+
+  /* spiky disc + transparent face sprite stacked in the same box */
+  .end-badge{position:absolute;left:50%;top:27.7%;transform:translate(-50%,-50%);
+    width:26.7cqw;aspect-ratio:1;}
+  .end-badge img{position:absolute;inset:0;width:100%;height:100%;user-select:none;-webkit-user-drag:none;}
+
+  .end-text{position:absolute;left:50%;top:47.5%;transform:translate(-50%,-50%);
+    width:80cqw;margin:0;text-align:center;color:#fff;
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:3.4cqw;line-height:1.4;letter-spacing:-0.02em;}
+
+  .end-btn{position:absolute;left:50%;transform:translate(-50%,-50%);
+    border:none;cursor:pointer;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:800;
+    font-size:7.6cqw;letter-spacing:-0.03em;line-height:1;
+    transition:filter .15s, transform .08s;}
+  .end-btn:hover{filter:brightness(1.1);}
+  .end-btn:active{transform:translate(-50%,-50%) scale(0.97);}
+  .end-play{top:59.4%;width:44.9cqw;height:9.8cqw;background:#d9d9d9;color:#111;}
+  .end-share{top:69.8%;width:33.9cqw;height:9.9cqw;}
+  #sceneFail .end-share{background:var(--db-red);color:#000;}
+  #sceneSuccess .end-share{background:#000;color:#d9d9d9;}
+
+  .foot{font-family:var(--mono);font-size:10px;color:#5b626b;text-align:center;margin-top:16px;letter-spacing:.05em;}
+
+  /* ===== Scene 01 — Welcome ===== */
+  /* Scene overlays sit on top of the game; dismissing one reveals what's beneath.
+     Future scenes (e.g. the 02 "evil eye" intro) can be added the same way. */
+  .scene{position:fixed;inset:0;z-index:100;display:flex;justify-content:center;}
+  .scene[hidden]{display:none;}
+
+  /* Welcome panel matches the game frame width (540px), centered.
+     container-type lets children size in cqw (% of panel width), so the whole
+     layout keeps the exact proportions of the 1215x1710 reference at any width. */
+  .wm-panel{position:relative;width:100%;max-width:540px;height:100%;background:#000;overflow:hidden;container-type:inline-size;}
+
+  .wm-sprites{position:absolute;inset:0;z-index:1;pointer-events:none;}
+  .wm-sprite{
+    position:absolute;top:-340px;left:0;
+    transform:translateY(0) rotate(var(--rot,0deg));
+    animation:wm-fall linear forwards;
+    will-change:transform;
+    user-select:none;-webkit-user-drag:none;
+  }
+  @keyframes wm-fall{
+    to{transform:translateY(calc(100vh + 400px)) rotate(var(--rot,0deg));}
+  }
+
+  /* Real gradient asset used as a multiply mask: white->transparent, black->solid,
+     so sprites dissolve into black at the bottom. */
+  .wm-gradient{
+    position:absolute;left:0;right:0;bottom:0;height:58%;
+    background:url('assets/01_screen/01_gradient.png') no-repeat center bottom;
+    background-size:100% 100%;
+    mix-blend-mode:multiply;z-index:2;pointer-events:none;
+  }
+
+  .wm-content{
+    position:absolute;left:0;right:0;bottom:0;z-index:3;
+    display:flex;flex-direction:column;align-items:center;
+    padding:0 4cqw 10.5vh;text-align:center;
+  }
+  /* Reference (1215px canvas): "welcome to" ~40px, title cap 77px (~106px font),
+     button 305x130 with ~98px text. Expressed as % of panel width via cqw. */
+  .wm-welcome{
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:3.4cqw;color:#fff;letter-spacing:-0.05em;line-height:1;margin-bottom:0.6cqw;
+  }
+  .wm-title{
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:800;
+    font-size:8.8cqw;color:#fff;letter-spacing:-0.05em;line-height:.9;
+    white-space:nowrap;margin-bottom:6.5cqw;
+  }
+  .wm-play{
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:7.8cqw;color:#111;background:#d9d9d9;
+    border:none;cursor:pointer;padding:0;
+    width:25.1cqw;height:10.7cqw;
+    display:flex;align-items:center;justify-content:center;
+    letter-spacing:-0.04em;line-height:1;
+    transition:background .15s, transform .08s;
+  }
+  .wm-play:hover{background:#fff;}
+  .wm-play:active{transform:translateY(2px);}
+
+  /* ===== Scene 02 — Evil Eye / Start ===== */
+  /* Same 540px panel + cqw proportions as scene 01, matching the 1215x1710 ref. */
+  .se-panel{position:relative;width:100%;max-width:540px;height:100%;background:#000;overflow:hidden;container-type:inline-size;}
+  .se-panel::after{                 /* thin inset frame from the reference */
+    content:'';position:absolute;inset:3.4vh 4.4cqw;
+    border:1px solid rgba(255,255,255,.4);pointer-events:none;
+  }
+
+  /* Eye: centered at 24% of the height, 33.25% of panel width (asset is 410x170). */
+  .se-eye{
+    position:absolute;left:50%;top:24.1%;transform:translate(-50%,-50%);
+    width:33.25cqw;aspect-ratio:410/170;
+  }
+  .se-eye-lids{                      /* this layer blinks; positioning stays on .se-eye */
+    position:absolute;inset:0;
+    animation:se-blink var(--blink-interval,2.2s) var(--blink-ease,ease-in-out) infinite;
+  }
+  .se-eye-white{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:contain;
+    user-select:none;-webkit-user-drag:none;
+  }
+  .se-pupil{                         /* black pupil image (~40% of eye width) */
+    position:absolute;left:50%;top:50%;width:39.8%;aspect-ratio:1;object-fit:contain;
+    transform:translate(-50%,-50%);
+    animation:se-look var(--look-interval,6s) ease-in-out infinite;
+  }
+  /* Pupil glance: hold center, flick right, center, left, center.
+     --look-interval = how often it looks around; ±6cqw = how far it glances. */
+  @keyframes se-look{
+    0%,18%{transform:translate(-50%,-50%);}
+    24%,40%{transform:translate(calc(-50% + 6cqw),-50%);}
+    46%,62%{transform:translate(-50%,-50%);}
+    68%,84%{transform:translate(calc(-50% - 6cqw),-50%);}
+    90%,100%{transform:translate(-50%,-50%);}
+  }
+  /* Blink: an eyelid shutter closes top→down over the eye once per cycle.
+     clip-path only hides (never distorts) the eye/pupil. A thin white sliver of the
+     almond stays at the bottom when "closed", so it reads as the white part blinking.
+     --blink-interval = how OFTEN it blinks. The blink MOTION speed = the gap between
+     the open mark (84%) and the closed mark (92%): a wider gap = slower open/close. */
+  @keyframes se-blink{
+    0%,84%,100%{clip-path:inset(0 0 0 0);}
+    92%{clip-path:inset(88% 0 0 0);}
+  }
+
+  .se-text{
+    position:absolute;left:50%;top:48.9%;transform:translate(-50%,-50%);
+    width:54cqw;margin:0;text-align:center;color:#fff;
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:3.4cqw;line-height:1.18;letter-spacing:-0.02em;
+  }
+  .se-start{
+    position:absolute;left:50%;top:72.7%;transform:translate(-50%,-50%);
+    width:24.9cqw;height:10.6cqw;
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:700;
+    font-size:7.8cqw;color:#111;background:#d9d9d9;
+    border:none;cursor:pointer;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    letter-spacing:-0.04em;line-height:1;
+    transition:background .15s, transform .08s;
+  }
+  .se-start:hover{background:#fff;}
+  .se-start:active{transform:translate(-50%,-50%) scale(0.97);}
+
+  /* ===== Scene 03 — Game (VB Roulette) =====
+     Full-screen black panel, cqw proportions off the 1215x1710 reference. */
+  .vb-game{
+    position:relative;width:100%;max-width:540px;min-height:100vh;margin:0 auto;
+    background:#000;overflow:hidden;container-type:inline-size;
+    font-family:'Inter',sans-serif;
+  }
+  .vb-game::after{                    /* inset frame from the reference */
+    content:'';position:absolute;inset:2.4vh 4.4cqw;
+    border:1px solid rgba(255,255,255,.45);pointer-events:none;z-index:6;
+  }
+
+  /* header logo (front.png shows as plain VB — its black circle is invisible on black) */
+  /* Ref: VB text 31px tall at x110,y100 (1215 canvas); "roulette" (24px font) shares
+     its baseline, ~5px after. front.png has transparent padding around the VB text
+     (text is 40% of image height), compensated by the negative margin + offsets. */
+  .vb-head{position:absolute;top:calc(5.8vh - 1.8cqw);left:6.8cqw;z-index:2;display:flex;align-items:center;
+    background:none;border:none;padding:0;cursor:pointer;transition:opacity .15s;}
+  .vb-head:hover{opacity:.75;}
+  .vb-head img{height:6.4cqw;width:auto;display:block;}
+  .vb-head span{font-style:italic;font-weight:700;font-size:2cqw;color:#fff;letter-spacing:-0.02em;
+    margin-left:-0.85cqw;padding-top:0.6cqw;}
+
+  /* route progress bar */
+  /* Ref: 6 dots (10px) evenly spaced, centers x128..x1074; lines float between them
+     with a ~37px gap to each dot; labels (18px italic) centered under the dots.
+     Stops are zero-width columns so the segments alone control the even spacing. */
+  .vb-route{position:absolute;top:11.2vh;left:10.1cqw;right:11.2cqw;z-index:2;
+    display:flex;align-items:flex-start;}
+  .vb-stop{position:relative;flex:0 0 auto;width:0.85cqw;display:flex;flex-direction:column;align-items:center;}
+  .vb-stop .d{width:0.85cqw;height:0.85cqw;border-radius:50%;background:#555;}
+  .vb-stop .n{position:absolute;top:2.2cqw;left:50%;transform:translateX(-50%);
+    font-style:italic;font-weight:700;font-size:1.5cqw;color:#666;letter-spacing:-0.02em;white-space:nowrap;}
+  .vb-stop.done .d{background:#fff;}
+  .vb-stop.done .n{color:#fff;}
+  .vb-seg{flex:1 1 auto;height:2px;background:#3a3a3a;margin:0.3cqw 3cqw 0;}
+  .vb-seg.done{background:#fff;}
+
+  /* leg heading */
+  .vb-leg{position:absolute;top:19.5vh;left:0;right:0;text-align:center;z-index:2;padding:0 8cqw;}
+  .vb-conn{font-style:italic;font-weight:700;font-size:2.4cqw;color:#fff;letter-spacing:-0.02em;margin-bottom:1.4cqw;}
+  .vb-title{font-style:italic;font-weight:800;font-size:4cqw;color:#fff;letter-spacing:-0.03em;line-height:1;}
+  .vb-title .ar{display:inline-block;margin:0 2.2cqw;font-weight:600;}
+
+  /* wheel */
+  .vb-wheel-wrap{position:absolute;top:52.8%;left:50%;transform:translate(-50%,-50%);
+    width:72cqw;height:72cqw;z-index:1;}
+  .vb-pointer{position:absolute;top:-1cqw;left:50%;transform:translateX(-50%);
+    width:7.5cqw;height:auto;z-index:4;filter:drop-shadow(0 2px 4px rgba(0,0,0,.55));}
+  .vb-wheel{position:absolute;inset:0;border-radius:50%;
+    transition:transform 5.4s cubic-bezier(.16,.84,.28,1);transform:rotate(0deg);}
+  .vb-back{position:absolute;inset:0;width:100%;height:100%;}
+  .vb-slices{position:absolute;inset:0;}
+  /* each 45° wedge: its real tip (at 44.6% of the sprite width, not 50%) sits at the
+     wheel centre and everything rotates about that tip, so the wedges tile cleanly. */
+  /* Ref ratios on the 72cqw disc: wedge radius = 46.5% of disc = 33.5cqw,
+     sprite aspect 287x375 → width 25.64cqw, tip at 44.6% of sprite width. */
+  .vb-slice{position:absolute;left:50%;top:50%;width:25.64cqw;height:33.5cqw;
+    margin-left:-11.43cqw;margin-top:-33.5cqw;transform-origin:44.6% 100%;}
+  .vb-slice img{width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;}
+  /* label runs along the wedge radius, reading from the centre toward the rim (per ref) */
+  .vb-label{position:absolute;left:44.6%;top:42%;transform:translate(-50%,-50%) rotate(-90deg);
+    white-space:nowrap;pointer-events:none;
+    font-style:italic;font-weight:800;font-size:3.7cqw;color:#f2f2f2;letter-spacing:-0.02em;}
+  .vb-hub{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:15cqw;height:15cqw;z-index:3;border-radius:50%;}
+
+  /* result line + spin button */
+  .vb-result{position:absolute;top:78.5%;left:0;right:0;text-align:center;z-index:2;padding:0 8cqw;
+    font-style:italic;font-weight:700;font-size:2.8cqw;color:#8a8a8a;letter-spacing:-0.02em;line-height:1.25;}
+  .vb-result.good{color:#dcdcdc;}
+  .vb-result.bad{color:#ff5560;}
+  .vb-spin{position:absolute;top:88%;left:50%;transform:translate(-50%,-50%);z-index:2;
+    width:26cqw;height:10.5cqw;background:var(--db-red);color:#000;border:none;cursor:pointer;
+    font-family:'Inter',sans-serif;font-style:italic;font-weight:800;font-size:9cqw;letter-spacing:-0.03em;
+    display:flex;align-items:center;justify-content:center;transition:filter .15s, transform .08s;}
+  .vb-spin:hover{filter:brightness(1.12);}
+  .vb-spin:active{transform:translate(-50%,-50%) scale(0.97);}
+  .vb-spin:disabled{background:#3a3a3a;color:#777;cursor:not-allowed;}
+</style>
+</head>
+<body>
+
+<!-- ===== Scene 01 — Welcome ===== -->
+<div class="scene" id="sceneWelcome">
+  <div class="wm-panel">
+    <div class="wm-sprites" id="wmSprites"></div>
+    <div class="wm-gradient"></div>
+    <div class="wm-content">
+      <div class="wm-welcome">welcome to</div>
+      <div class="wm-title">Verspätung Bahn</div>
+      <button class="wm-play" id="wmPlay">play</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Scene 02 — Evil Eye / Start ===== -->
+<div class="scene" id="sceneStart" hidden>
+  <div class="se-panel">
+    <div class="se-eye">
+      <div class="se-eye-lids">
+        <img class="se-eye-white" src="assets/02_screen/02_eye.png" alt="">
+        <img class="se-pupil" src="assets/02_screen/02_eye_black.png" alt="">
+      </div>
+    </div>
+    <p class="se-text">You want to reach Berlin. Your connection seems clear and planned. But the evil eye of Verspätung is watching you. Roll the roulette and pray for the forgiveness.</p>
+    <button class="se-start" id="seStart">start</button>
+  </div>
+</div>
+
+<!-- ===== Scene 03 — Game (VB Roulette) ===== -->
+<div class="vb-game">
+
+  <audio id="vbAmbient" src="sfx/ambient_crowd.mp3" loop preload="auto"></audio>
+
+  <button class="vb-head" id="vbHome" title="back to start">
+    <img src="assets/03_screen/03_roulette_front.png" alt="VB">
+    <span>roulette</span>
+  </button>
+
+  <div class="vb-route" id="route"></div>
+
+  <div class="vb-leg">
+    <div class="vb-conn" id="legLabel">connection 1 of 5</div>
+    <div class="vb-title" id="legRoute"></div>
+  </div>
+
+  <div class="vb-wheel-wrap">
+    <img class="vb-pointer" src="assets/03_screen/03_roulette_pointer.png" alt="">
+    <div class="vb-wheel" id="wheel">
+      <img class="vb-back" src="assets/03_screen/03_roulette_back.png" alt="">
+      <div class="vb-slices" id="wheelSlices"></div>
+    </div>
+    <img class="vb-hub" src="assets/03_screen/03_roulette_front.png" alt="VB">
+  </div>
+
+  <div class="vb-result" id="result">Press the lever. Hope for seat. Pray to reach Berlin.</div>
+
+  <button class="vb-spin" id="spinBtn">spin</button>
+</div>
+
+<!-- ===== Scene 04 — Fail ===== -->
+<div class="scene" id="sceneFail" hidden>
+  <div class="end-panel">
+    <div class="end-badge">
+      <img src="assets/03_screen/03_roulette_back.png" alt="">
+      <img src="assets/04_fail/04_fail.png" alt="">
+    </div>
+    <p class="end-text">Sorry, your trip ends here.<br>VB wishes you a good day!</p>
+    <button class="end-btn end-play" id="failPlay">play again</button>
+    <button class="end-btn end-share" id="failShare">share</button>
+  </div>
+</div>
+
+<!-- ===== Scene 05 — Success ===== -->
+<div class="scene" id="sceneSuccess" hidden>
+  <div class="end-panel">
+    <div class="end-badge">
+      <img src="assets/03_screen/03_roulette_back.png" alt="">
+      <img src="assets/05_sucess/05_sucess.png" alt="">
+    </div>
+    <p class="end-text">Congrats, you survived!<br>although we didn’t want you to.<br>tschüs, till next time.</p>
+    <button class="end-btn end-play" id="successPlay">play again</button>
+    <button class="end-btn end-share" id="successShare">share</button>
+  </div>
+</div>
+
+<script>
+const STATIONS = ["köln hbf","düsseldorf","essen hbf","dortmund","hannover","berlin hbf"];
+const ROUTE    = ["köln","düsseldorf","essen","dortmund","hannover","berlin"];
+const LEGS = STATIONS.length - 1; // 5 spins to win
+
+// GOOD (red wedges) — only these advance you.
+const RED_GOOD = [
+  {label:"free seat", text:"A seat. An actual free seat. A small miracle. You roll on."},
+  {label:"koffee",    text:"The Bordbistro works and the coffee is hot. Onward."},
+  {label:"wlan!",     text:"The WiFi connects first try. Nobody will believe you. You continue."},
+  {label:"on time",   text:"Exactly on time. Suspicious — but you take the win."},
+  {label:"quiet",     text:"Ruhezone, and it is somehow actually quiet. You advance."},
+  {label:"warm",      text:"The heating works, in the right season. Remarkable. You move on."},
+  {label:"space",     text:"Legroom. Nobody reclined into your knees. You press on."},
+  {label:"anschluss", text:"You catch the connection with two whole minutes to spare."},
+];
+// BAD — black labelled wedges. These eliminate you.
+const BAD_BLACK = [
+  {label:"no AC",     text:"The air conditioning dies. 34°C and climbing. You do not survive coach 7."},
+  {label:"WC kaputt", text:"Every toilet in the Zug is „defekt\". This is where the journey ends."},
+  {label:"+60",       text:"Sixty minute delay. Connection missed, replacement bus missed too."},
+  {label:"ausfall",   text:"„Zug fällt aus.\" Cancelled. The whole platform exhales at once."},
+  {label:"streik",    text:"GDL strike, announced mid-journey. No trains today. Or tomorrow."},
+  {label:"ticket",    text:"Fahrkartenkontrolle. Your ticket would not load. Off you go."},
+];
+// BAD — halftone icon wedges (no label). These eliminate you.
+const BAD_ICON = [
+  {icon:"clock",   text:"Signalstörung. You stop between two fields for an hour. No reason given."},
+  {icon:"fire",    text:"Something smoulders in the Oberleitung. Everyone off. The journey is over."},
+  {icon:"bandit",  text:"The evil eye of Verspätung finds you. Your stop is skipped. You live elsewhere now."},
+  {icon:"smileys", text:"Schienenersatzverkehr. A sad replacement bus is promised. It never comes."},
+];
+
+const ICON_SRC = {
+  clock:"assets/03_screen/03_clock.png",
+  fire:"assets/03_screen/03_fire.png",
+  bandit:"assets/03_screen/03_bandit.png",
+  smileys:"assets/03_screen/03_smileys.png",
+};
+const RED_SRC   = "assets/03_screen/03_roulette_red.png";
+const BLACK_SRC = "assets/03_screen/03_roulette_black.png";
+
+const SEG = 8;          // wedges per wheel
+
+let leg = 0;            // current leg index (0-based)
+let slots = [];         // current wheel slots
+let busy = false;
+let rotation = 0;       // accumulated rotation
+
+const wheel = document.getElementById('wheel');
+const slicesEl = document.getElementById('wheelSlices');
+const spinBtn = document.getElementById('spinBtn');
+const resultEl = document.getElementById('result');
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function buildSlots(){
+  // 4 or 5 red per spin → ~56%/leg → ~6% over 5 legs
+  const goodCount = Math.random() < 0.5 ? 4 : 5;
+  const good = shuffle([...RED_GOOD]).slice(0, goodCount)
+    .map(g => ({type:'red', doom:false, label:g.label, text:g.text}));
+  const badPool = shuffle([
+    ...BAD_BLACK.map(b => ({type:'black', doom:true, label:b.label, text:b.text})),
+    ...BAD_ICON .map(b => ({type:'icon',  doom:true, icon:b.icon,  text:b.text})),
+  ]);
+  const bad = badPool.slice(0, SEG - goodCount);
+  return shuffle([...good, ...bad]);
+}
+
+function buildWheel(){
+  slicesEl.innerHTML = '';
+  slots.forEach((slot,i) => {
+    const slice = document.createElement('div');
+    slice.className = 'vb-slice';
+    slice.style.transform = `rotate(${i*45}deg)`;
+    const img = document.createElement('img');
+    img.src = slot.type==='red' ? RED_SRC : slot.type==='black' ? BLACK_SRC : ICON_SRC[slot.icon];
+    slice.appendChild(img);
+    if(slot.label){
+      const lbl = document.createElement('div');
+      lbl.className = 'vb-label';
+      lbl.textContent = slot.label;
+      slice.appendChild(lbl);
+    }
+    slicesEl.appendChild(slice);
+  });
+}
+
+function renderRoute(){
+  const wrap=document.getElementById('route');
+  wrap.innerHTML='';
+  ROUTE.forEach((name,i)=>{
+    const done = i<=leg;        // only stations actually reached light up
+    const s=document.createElement('div');
+    s.className='vb-stop'+(done?' done':'');
+    s.innerHTML=`<div class="d"></div><div class="n">${name}</div>`;
+    wrap.appendChild(s);
+    if(i<ROUTE.length-1){
+      const seg=document.createElement('div');
+      seg.className='vb-seg'+(i<=leg?' done':'');
+      wrap.appendChild(seg);
+    }
+  });
+}
+
+function renderLeg(){
+  document.getElementById('legLabel').textContent=`connection ${leg+1} of ${LEGS}`;
+  document.getElementById('legRoute').innerHTML=`${STATIONS[leg]}<span class="ar">⟶</span>${STATIONS[leg+1]}`;
+}
+
+function startLeg(){
+  slots = buildSlots();
+  buildWheel();
+  renderRoute();
+  renderLeg();
+}
+
+function spin(){
+  if(busy) return;
+  busy=true;
+  spinBtn.disabled=true;
+  resultEl.className='vb-result';
+  resultEl.textContent='die Bahn entscheidet…';
+
+  const idx=Math.floor(Math.random()*SEG);
+  const step=360/SEG;
+  const center=idx*step;                  // wedge i is centered on the i*step ray (0=top, cw)
+  const base=Math.ceil(rotation/360)*360; // continue forward
+  const target=base + 360*5 + (360-center); // 5 full turns + align wedge center to top
+  rotation=target;
+  wheel.style.transform=`rotate(${rotation}deg)`;
+
+  wheel.addEventListener('transitionend',()=>resolve(idx),{once:true});
+}
+
+function resolve(idx){
+  const slot=slots[idx];
+  if(slot.doom){
+    resultEl.className='vb-result bad';
+    resultEl.textContent=slot.text;
+    setTimeout(()=>gameOver(slot),1100);
+  }else{
+    resultEl.className='vb-result good';
+    resultEl.textContent=slot.text;
+    leg++;
+    if(leg>=LEGS){
+      setTimeout(victory,1000);
+    }else{
+      setTimeout(()=>{
+        startLeg();
+        resultEl.className='vb-result good';
+        resultEl.innerHTML=`survived. next stop: <b>${STATIONS[leg+1]}</b>.`;
+        busy=false;spinBtn.disabled=false;
+      },1300);
+    }
+  }
+}
+
+function showEnd(id){
+  const s=document.getElementById(id);
+  s.hidden=false;
+  s.style.opacity='0';
+  s.style.transition='opacity .4s ease';
+  requestAnimationFrame(()=>{ s.style.opacity='1'; });
+}
+
+// Ambient crowd loop — only plays while scene 3 (the roulette game) is on screen.
+const vbAmbient = document.getElementById('vbAmbient');
+vbAmbient.volume = 0.35;
+function playAmbient(){ vbAmbient.currentTime = 0; vbAmbient.play().catch(()=>{}); }
+function stopAmbient(){ vbAmbient.pause(); }
+
+function gameOver(slot){
+  stopAmbient();
+  showEnd('sceneFail');
+}
+
+function victory(){
+  document.querySelectorAll('.vb-stop').forEach(s=>s.classList.add('done'));
+  stopAmbient();
+  showEnd('sceneSuccess');
+}
+function restart(){
+  leg=0;busy=false;rotation=0;
+  wheel.style.transition='none';
+  wheel.style.transform='rotate(0deg)';
+  void wheel.offsetWidth;
+  wheel.style.transition='';
+  document.getElementById('sceneFail').hidden=true;
+  document.getElementById('sceneSuccess').hidden=true;
+  resultEl.className='vb-result';
+  resultEl.textContent='Press the lever. Hope for seat. Pray to reach Berlin.';
+  spinBtn.disabled=false;
+  startLeg();
+  playAmbient();
+}
+
+spinBtn.addEventListener('click',spin);
+document.getElementById('failPlay').addEventListener('click',restart);
+document.getElementById('successPlay').addEventListener('click',restart);
+// share: intentionally empty for now
+document.getElementById('failShare').addEventListener('click',()=>{});
+document.getElementById('successShare').addEventListener('click',()=>{});
+startLeg();
+
+/* ===== Scene 01 — Welcome ===== */
+// Each sprite type has a FIXED size and rotation; only the horizontal
+// spawn position is random. They fall continuously in a loop.
+// Sizes are fractions of the panel width (wf), matching the reference scale.
+// Each type has a FIXED size and rotation; only the horizontal spawn is random.
+const WM_SPRITES = [
+  {src:'assets/01_screen/01_clock.png',   wf:0.33, rot:-6, dur:6},
+  {src:'assets/01_screen/01_smile.png',   wf:0.33, rot:0,  dur:7.5},
+  {src:'assets/01_screen/01_sad.png',     wf:0.29, rot:-9, dur:6.5},
+  {src:'assets/01_screen/01_bandito.png', wf:0.31, rot:5,  dur:8.5},
+  {src:'assets/01_screen/01_train.png',   wf:0.30, rot:0,  dur:7},
+  {src:'assets/01_screen/01_flame.png',   wf:0.20, rot:9,  dur:5},
+  {src:'assets/01_screen/01_eye.png',     wf:0.28, rot:0,  dur:5.5},
+  {src:'assets/01_screen/01_wheel.png',     wf:0.36, rot:5,  dur:4.5},
+];
+
+const wmLayer = document.getElementById('wmSprites');
+let wmTimer = null;
+let wmLastType = -1;   // avoid repeating the same sprite back-to-back
+let wmLastFrac = -1;   // avoid spawning in the same horizontal zone twice in a row
+
+function wmSpawn(delay){
+  const cw = wmLayer.clientWidth || 540;
+  // pick a different type than last time
+  let i;
+  do { i = Math.floor(Math.random()*WM_SPRITES.length); }
+  while(WM_SPRITES.length>1 && i===wmLastType);
+  wmLastType = i;
+  const t = WM_SPRITES[i];
+
+  const w = Math.round(t.wf * cw);
+  // pick a horizontal fraction spread apart from the previous one
+  let frac;
+  do { frac = Math.random(); }
+  while(wmLastFrac>=0 && Math.abs(frac - wmLastFrac) < 0.28);
+  wmLastFrac = frac;
+
+  const img = document.createElement('img');
+  img.className = 'wm-sprite';
+  img.src = t.src;
+  img.width = w;
+  // random tilt between -5 and 5 degrees
+  const rot = (Math.random() * 10 - 5).toFixed(2);
+  img.style.setProperty('--rot', rot + 'deg');
+  img.style.left = Math.round(frac * Math.max(0, cw - w)) + 'px';
+  img.style.animationDuration = t.dur + 's';
+  if(delay) img.style.animationDelay = delay + 's';
+  img.addEventListener('animationend', () => img.remove(), {once:true});
+  wmLayer.appendChild(img);
+}
+
+function wmStart(){
+  if(wmTimer) return;
+  // pre-fill a few, staggered up the screen so it doesn't start empty
+  for(let i=0;i<3;i++) wmSpawn(-4 - i*3);
+  wmTimer = setInterval(wmSpawn, 500);
+}
+
+function wmStop(){
+  clearInterval(wmTimer);
+  wmTimer = null;
+}
+
+// Scene switch without see-through: the incoming scene appears fully opaque
+// UNDER the outgoing one, then only the outgoing scene fades out on top.
+function sceneSwitch(from, to){
+  if(to){
+    to.style.transition = 'none';
+    to.style.opacity = '1';
+    to.hidden = false;
+  }
+  from.style.zIndex = '101';               // keep outgoing on top while it fades
+  from.style.transition = 'opacity .4s ease';
+  from.style.opacity = '0';
+  setTimeout(() => {
+    from.hidden = true;
+    from.style.opacity = '1';              // reset so the scene can be shown again
+    from.style.zIndex = '';
+    from.style.transition = 'none';
+  }, 400);
+}
+
+// play → scene 02 (evil eye)
+document.getElementById('wmPlay').addEventListener('click', () => {
+  wmStop();
+  sceneSwitch(document.getElementById('sceneWelcome'), document.getElementById('sceneStart'));
+  wmLayer.innerHTML = '';
+});
+
+// start → the game (both scene overlays gone, game sits underneath)
+document.getElementById('seStart').addEventListener('click', () => {
+  sceneSwitch(document.getElementById('sceneStart'), null);
+  playAmbient();
+});
+
+// VB roulette logo → back to the welcome screen (with a fresh game waiting)
+document.getElementById('vbHome').addEventListener('click', () => {
+  restart();
+  stopAmbient();
+  const w = document.getElementById('sceneWelcome');
+  w.style.transition = 'none';
+  w.style.opacity = '1';
+  w.hidden = false;
+  wmStart();
+});
+
+wmStart();
+</script>
+</body>
+</html>
