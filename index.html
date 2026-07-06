@@ -481,7 +481,7 @@
       <img src="assets/03_screen/03_roulette_back.png" alt="">
       <img src="assets/05_sucess/05_sucess.png" alt="">
     </div>
-    <p class="end-text">Congrats, you survived!<br>although we didn’t want you to.<br>cheerio, till next time.</p>
+    <p class="end-text">Congrats, you survived!<br>although we didn’t want you to.<br>tchüss, till next time.</p>
     <button class="end-btn end-play" id="successPlay">play again</button>
     <button class="end-btn end-share" id="successShare">share</button>
   </div>
@@ -732,25 +732,27 @@ function spin(){
   wheel.addEventListener('transitionend',()=>resolve(idx),{once:true});
 }
 
+const RESULT_READ_MS = 2800; // time the result text stays up before moving on
+
 function resolve(idx){
   const slot=slots[idx];
   if(slot.doom){
     resultEl.className='vb-result bad';
     resultEl.textContent=slot.text;
-    setTimeout(()=>gameOver(slot),1100);
+    setTimeout(()=>gameOver(slot),RESULT_READ_MS);
   }else{
     resultEl.className='vb-result good';
     resultEl.textContent=slot.text;
     leg++;
     if(leg>=LEGS){
-      setTimeout(victory,1000);
+      setTimeout(victory,RESULT_READ_MS);
     }else{
       setTimeout(()=>{
         startLeg();
         resultEl.className='vb-result good';
         resultEl.innerHTML=`survived. next stop: <b>${STATIONS[leg+1]}</b>.`;
         busy=false;spinBtn.disabled=false;
-      },1300);
+      },RESULT_READ_MS);
     }
   }
 }
